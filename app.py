@@ -5,7 +5,11 @@ import os
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/')
 def index():
@@ -13,15 +17,21 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
+    if 'image' not in request.files:
+        return "No file part in the request."
+
     file = request.files['image']
-    if file:
+
+    if file.filename == '':
+        return "No file selected for uploading."
+
+    if file and allowed_file(file.filename):
         filepath = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(filepath)
+        return f"File uploaded successfully: {filepath}"
 
-        processed_image_path = process_image(filepath)
-
-        return f"Image processed! Check the output: <img src='/{processed_image_path}' />"
-    return "No file uploaded."
+    else:
+        return "File type not allowed."
 
 def process_image(filepath):
     image = cv2.imread(filepath)
@@ -32,8 +42,9 @@ def process_image(filepath):
     print(f"Image Resolution: {width}x{height}")
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # gray = cv2.resize(gray, (800, 600))
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 
     for (x, y, w, h) in faces:
         cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
